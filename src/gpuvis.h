@@ -473,6 +473,7 @@ public:
     void init_amd_timeline_event( trace_event_t &event );
     void init_msm_timeline_event( trace_event_t &event );
     void init_msm_freq_event( trace_event_t &event );
+    void init_msm_iris_timeline_event( trace_event_t &event );
     void init_drm_sched_timeline_event( trace_event_t &event );
     void init_i915_event( trace_event_t &event );
     void init_i915_perf_event( trace_event_t &event );

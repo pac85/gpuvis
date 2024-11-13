@@ -744,6 +744,13 @@ static bool is_msm_timeline_event( const char *name )
             !strcmp( name, "msm_gpu_preemption_irq" ));
 }
 
+static bool is_msm_iris_event( const char *name )
+{
+   return ( !strcmp( name, "iris_hfi_queue_buffer" ) ||
+            !strcmp( name, "iris_hfi_response_input" ) ||
+            !strcmp( name, "iris_hfi_response_output" ));
+}
+
 static bool is_msm_freq_event( const char *name )
 {
     return ( !strcmp( name, "msm_gpu_freq_change" ) );
@@ -1976,6 +1983,11 @@ uint64_t TraceEvents::get_event_gfxcontext_hash( const trace_event_t &event )
             return atoi( get_event_field_val( event, "id", "0" ) );
     }
 
+    if ( is_msm_iris_event( event.name ) )
+    {
+        return atoi( get_event_field_val( event, "timestamp", "0" ) );
+    }
+
     if ( is_drm_sched_timeline_event( event ) )
     {
         return event.seqno;
@@ -2220,6 +2232,58 @@ void TraceEvents::init_msm_timeline_event( trace_event_t &event )
         }
     }
     else if ( !strcmp( event.name, "msm_gpu_submit_flush" ) )
+    {
+        event.flags |= TRACE_FLAG_HW_QUEUE;
+    }
+
+    if ( plocs->size() > 1 )
+    {
+        // First event.
+        trace_event_t &event0 = m_events[ plocs->front() ];
+        event0.flags |= TRACE_FLAG_SW_QUEUE;
+
+        // Event right before the event we just added.
+        auto it = plocs->rbegin() + 1;
+        trace_event_t &event_prev = m_events[ *it ];
+
+        event.user_comm = event0.comm;
+        event.id_start = event_prev.id;
+    }
+}
+
+void TraceEvents::init_msm_iris_timeline_event( trace_event_t &event )
+{
+    uint64_t gfxcontext_hash = get_event_gfxcontext_hash( event );
+
+    std::string str = string_format( "msm iris" );
+
+    m_amd_timeline_locs.add_location_str( str.c_str(), event.id );
+
+    m_gfxcontext_locs.add_location_u64( gfxcontext_hash, event.id );
+
+    const std::vector< uint32_t > *plocs = m_gfxcontext_locs.get_locations_u64( gfxcontext_hash );
+
+    if ( !strcmp( event.name, "iris_hfi_response_output" ) )
+    {
+        trace_event_t event0;
+
+        // Look for a matching flush event
+        for (int32_t i =  0; i < plocs->size(); i--) {
+            event0 = m_events[ plocs->at(i) ];
+            if (!strcmp( event0.name, "iris_hfi_queue_buffer" ) ) {
+                for ( uint32_t idx : *plocs )
+                {
+                    // Remove the FENCE_FENCE_SIGNALED flag in all..
+                    event.flags &= ~TRACE_FLAG_FENCE_SIGNALED;
+                    m_events[ idx ].flags |= TRACE_FLAG_TIMELINE;
+                }
+                // ...but the last event of this context
+                event.flags |= TRACE_FLAG_FENCE_SIGNALED;
+                break;
+            }
+        }
+    }
+    else if ( !strcmp( event.name, "iris_hfi_response_input" ))
     {
         event.flags |= TRACE_FLAG_HW_QUEUE;
     }
@@ -2666,6 +2730,10 @@ void TraceEvents::init_new_event( trace_event_t &event )
     else if ( is_msm_timeline_event( event.name ) )
     {
         init_msm_timeline_event( event );
+    }
+    else if ( is_msm_iris_event( event.name ) )
+    {
+        init_msm_iris_timeline_event( event );
     }
     else if ( event.seqno && !event.is_ftrace_print() )
     {

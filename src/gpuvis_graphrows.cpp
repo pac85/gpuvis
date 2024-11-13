@@ -519,6 +519,18 @@ void GraphRows::init( TraceEvents &trace_events )
         }
     }
 
+    // Qualcomm iris timeline
+    {
+        std::string str = string_format( "msm iris" );
+        std::string str_hw = string_format( "msm iris hw" );
+
+        if ( ( plocs = trace_events.get_locs( str.c_str(), &type ) ) )
+            push_row( str, type, plocs->size() );
+
+        if ( ( plocs = trace_events.get_locs( str_hw.c_str(), &type ) ) )
+            push_row( str_hw, type, plocs->size() );
+    }
+
     // drm sched timeline
     {
         for ( std::string ring : trace_events.m_drm_sched.rings)
