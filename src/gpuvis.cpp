@@ -1848,8 +1848,23 @@ void TraceEvents::update_tgid_colors()
             float alpha = label_alpha;
             size_t len = ( size_t )-1;
             trace_event_t &sched_switch = m_events[ idx ];
-            const char *prev_comm = get_event_field_val( sched_switch, "prev_comm" );
-            const char *prev_pid = get_event_field_val( sched_switch, "prev_pid" );
+            const char *prev_comm;
+            const char *prev_pid;
+
+            // Make switch_wake box more transparent
+            if (sched_switch.flags & TRACE_FLAG_SCHED_SWITCH_TASK_WAKING)
+                alpha *= 0.5;
+
+            if (sched_switch.flags & TRACE_FLAG_SCHED_SWITCH_TASK_WAKING)
+            {
+                prev_comm = get_event_field_val( sched_switch, "comm" );
+                prev_pid = get_event_field_val( sched_switch, "pid" );
+            }
+            else
+            {
+                prev_comm = get_event_field_val( sched_switch, "prev_comm" );
+                prev_pid = get_event_field_val( sched_switch, "prev_pid" );
+            }
 
             if ( !strncmp( prev_comm,      "swapper/", 8 ) )
                 len = 8;
@@ -2034,6 +2049,25 @@ void TraceEvents::init_sched_switch_event( trace_event_t &event )
         return;
     }
 
+    bool is_wakeup = !strcmp( event.name, "sched_wakeup" );
+
+    if ( is_wakeup )
+    {
+        const char *pid_str = get_event_field_val( event, "pid" );
+        const char *target_cpu_str = get_event_field_val( event, "target_cpu" );
+        if ( pid_str && target_cpu_str)
+        {
+            int pid = atoi( pid_str );
+            int target_cpu = atoi( target_cpu_str );
+
+            event.flags |= TRACE_FLAG_SCHED_SWITCH_TASK_WAKING;
+            event.pid = pid;
+            event.cpu = target_cpu;
+            m_sched_switch_wakeup_locs.add_location_u64( pid, event.id );
+            m_sched_switch_cpu_locs.add_location_u64( target_cpu, event.id );
+        }
+    }
+
     const char *prev_pid_str = get_event_field_val( event, "prev_pid" );
     const char *next_pid_str = get_event_field_val( event, "next_pid" );
 
@@ -2046,6 +2080,18 @@ void TraceEvents::init_sched_switch_event( trace_event_t &event )
         // Seems that sched_switch event.pid is equal to the event prev_pid field.
         // We're running with this in several bits of code in gpuvis_graph, so assert it's true.
         assert( prev_pid == event.pid );
+
+        // Look for a previous wakeup event
+        plocs = m_sched_switch_wakeup_locs.get_locations_u64( next_pid );
+        if ( plocs )
+        {
+            uint32_t ploc = plocs->back();
+
+            trace_event_t &wakeup_event = m_events[ ploc ];
+
+            wakeup_event.duration = event.ts - wakeup_event.ts;
+            wakeup_event.color = event.color;
+        }
 
         // Look in the sched_switch next queue for an event that said we were starting up.
         plocs = get_sched_switch_locs( prev_pid, TraceEvents::SCHED_SWITCH_NEXT );
@@ -2674,7 +2720,8 @@ void TraceEvents::init_new_event( trace_event_t &event )
 
     if ( event.is_sched_switch() ||
          !strcmp( event.name, "psci_domain_idle_enter" ) ||
-         !strcmp( event.name, "psci_domain_idle_exit" ))
+         !strcmp( event.name, "psci_domain_idle_exit" ) ||
+         !strcmp( event.name, "sched_wakeup" ))
     {
         init_sched_switch_event( event );
     }

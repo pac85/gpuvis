@@ -1666,6 +1666,7 @@ static void init_event_flags( trace_data_t &trace_data, trace_event_t &event )
                       TRACE_FLAG_SW_QUEUE |
                       TRACE_FLAG_HW_QUEUE |
                       TRACE_FLAG_SCHED_SWITCH |
+                      TRACE_FLAG_SCHED_SWITCH_TASK_WAKING |
                       TRACE_FLAG_SCHED_SWITCH_TASK_RUNNING |
                       TRACE_FLAG_AUTOGEN_COLOR );
 

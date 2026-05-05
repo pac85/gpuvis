@@ -174,6 +174,7 @@ enum trace_flag_type_t {
     TRACE_FLAG_I915_PERF                    = 0x40000, // i915-perf gpu generated
     TRACE_FLAG_LINUX_PERF                   = 0x80000,
     TRACE_FLAG_GPUVIS_PRINT                 = 0x100000, // Added for new `gpuvis_print` event type in kernel
+    TRACE_FLAG_SCHED_SWITCH_TASK_WAKING     = 0x200000, // sched_wakeup
 };
 
 struct trace_event_t

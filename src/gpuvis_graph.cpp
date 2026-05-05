@@ -1620,12 +1620,13 @@ uint32_t TraceWin::graph_render_cpus_timeline( graph_info_t &gi )
         {
             const trace_event_t &sched_switch = get_event( locs[ idx ] );
             bool is_psci_exit = !strcmp( sched_switch.name, "psci_domain_idle_exit" );
-            float x0 = gi.ts_to_screenx( sched_switch.ts - sched_switch.duration );
-            float x1 = gi.ts_to_screenx( sched_switch.ts );
+            bool is_sched_wakeup = !!( sched_switch.flags & TRACE_FLAG_SCHED_SWITCH_TASK_WAKING );
+            float x0 = gi.ts_to_screenx( is_sched_wakeup ? sched_switch.ts : sched_switch.ts - sched_switch.duration );
+            float x1 = gi.ts_to_screenx( is_sched_wakeup ? sched_switch.ts + sched_switch.duration : sched_switch.ts );
 
             // Bail if we're off the right side of our graph
             if ( x0 > gi.rc.x + gi.rc.w )
-                break;
+                continue;
 
             if ( hide_system_events && ( sched_switch.flags & TRACE_FLAG_SCHED_SWITCH_SYSTEM_EVENT ) )
                 continue;
@@ -1645,7 +1646,7 @@ uint32_t TraceWin::graph_render_cpus_timeline( graph_info_t &gi )
                 event_renderer.done();
 
                 // The swapper / idle process regions are quite visually noisy, so optionally hide their bg and text
-                const bool visible_bg_and_text = is_psci_exit || !( sched_switch.pid == 0 && s_opts().getb( OPT_HideIdleProcess ) );
+                const bool visible_bg_and_text = is_sched_wakeup || is_psci_exit || !( sched_switch.pid == 0 && s_opts().getb( OPT_HideIdleProcess ) );
 
                 if ( visible_bg_and_text )
                 {
@@ -1656,12 +1657,16 @@ uint32_t TraceWin::graph_render_cpus_timeline( graph_info_t &gi )
                 }
 
                 // If alt key isn't down and there is room for ~12 characters, render comm name
-                if ( visible_bg_and_text && !alt_down && ( x1 - x0 > text_size.x ) )
+                if ( visible_bg_and_text && !alt_down && ( x1 - x0 > text_size.x ) && !is_sched_wakeup )
                 {
                     float y_text = y + ( row_h - text_size.y ) / 2 - imgui_scale( 1.0f );
-                    const char *prev_comm = get_event_field_val( sched_switch, "prev_comm" );
+                    const char *prev_comm;
                     if ( is_psci_exit )
                         prev_comm = "psci-idle";
+                    else if ( is_sched_wakeup )
+                        prev_comm = get_event_field_val( sched_switch, "comm" );
+                    else
+                        prev_comm = get_event_field_val( sched_switch, "prev_comm" );
 
                     imgui_push_cliprect( { x0, y_text, x1 - x0, text_size.y } );
                     imgui_draw_text( x0 + imgui_scale( 1.0f ), y_text, color_text, prev_comm );
@@ -3198,10 +3203,20 @@ void TraceWin::graph_handle_hotkeys( graph_info_t &gi )
         else if ( !gi.sched_switch_bars.empty() )
         {
             // Hovering over cpu graph
-            int event_id = gi.sched_switch_bars[ 0 ];
-            const trace_event_t &event = get_event( event_id );
+            // Find first non waking event
+            int event_id;
+            for (auto id : gi.sched_switch_bars )
+            {
+                event_id = id;
+                if ( (get_event( event_id ).flags & TRACE_FLAG_SCHED_SWITCH_TASK_WAKING) == 0 )
+                {
+                    const trace_event_t &event = get_event( event_id );
 
-            m_graph.cpu_filter_pid = event.pid;
+                    m_graph.cpu_filter_pid = event.pid;
+
+                    break;
+                }
+            }
         }
         else if ( !gi.i915_perf_bars.empty() )
         {
@@ -4365,18 +4380,20 @@ void TraceWin::graph_mouse_tooltip_sched_switch( std::string &ttip, graph_info_t
     for ( uint32_t id : gi.sched_switch_bars )
     {
         trace_event_t &event = get_event( id );
-        const char *prev_comm = get_event_field_val( event, "prev_comm" );
+        bool is_sched_wakeup = !!( event.flags & TRACE_FLAG_SCHED_SWITCH_TASK_WAKING );
+        const char *prev_comm = get_event_field_val( event, is_sched_wakeup ? "comm" : "prev_comm" );
 
         if ( prev_comm )
         {
             int prev_pid = event.pid;
             int prev_state = atoi( get_event_field_val( event, "prev_state" ) );
             int task_state = prev_state & ( TASK_REPORT_MAX - 1 );
-            const std::string task_state_str = task_state_to_str( task_state );
+            const std::string task_state_str = is_sched_wakeup ? "TASK_WAKEUP" : task_state_to_str( task_state );
             std::string timestr = ts_to_timestr( event.duration, 4 );
 
-            ttip += string_format( "\n%s%u%s sched_switch %s%s-%d%s %sCpu:%d%s (%s) %s",
+            ttip += string_format( "\n%s%u%s sched_%s %s%s-%d%s %sCpu:%d%s (%s) %s",
                                    gi.clr_bright, event.id, gi.clr_def,
+                                   is_sched_wakeup ? "wakeup" : "switch",
                                    gi.clr_brightcomp, prev_comm, prev_pid, gi.clr_def,
                                    gi.clr_bright, event.cpu, gi.clr_def,
                                    timestr.c_str(),

@@ -520,6 +520,7 @@ public:
     TraceLocations m_msm_freq_locs;
 
     // Map of pid to sched_switch event locations.
+    TraceLocations m_sched_switch_wakeup_locs;
     TraceLocations m_sched_switch_prev_locs;
     TraceLocations m_sched_switch_next_locs;
 
