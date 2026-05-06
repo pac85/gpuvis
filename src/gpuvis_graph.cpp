@@ -1614,7 +1614,10 @@ uint32_t TraceWin::graph_render_cpus_timeline( graph_info_t &gi )
 
         event_renderer_t event_renderer( gi, y + imgui_scale( 2.0f ), gi.rc.w, row_h - imgui_scale( 3.0f ) );
 
-        for ( size_t idx = vec_find_eventid( locs, gi.eventstart );
+        // Sometimes we draw bars backwards so back by one event to make sure we don't miss the first
+        uint32_t eventstart = gi.eventstart > 0 ? gi.eventstart - 1 : 0;
+
+        for ( size_t idx = vec_find_eventid( locs, eventstart );
               idx < locs.size();
               idx++ )
         {
