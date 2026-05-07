@@ -21,6 +21,7 @@
  * OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
  * THE SOFTWARE.
  */
+#include <cstdint>
 #include <stdio.h>
 #include <string.h>
 
@@ -1625,8 +1626,11 @@ uint32_t TraceWin::graph_render_cpus_timeline( graph_info_t &gi )
             bool is_psci_exit = !strcmp( sched_switch.name, "psci_domain_idle_exit" );
             bool is_sched_wakeup = !!( sched_switch.flags & TRACE_FLAG_SCHED_SWITCH_TASK_WAKING );
             bool is_pcsi_enter = !strcmp( sched_switch.name, "psci_domain_idle_enter" );
-            float x0 = gi.ts_to_screenx( is_sched_wakeup ? sched_switch.ts : sched_switch.ts - sched_switch.duration );
-            float x1 = gi.ts_to_screenx( is_sched_wakeup ? sched_switch.ts + sched_switch.duration : sched_switch.ts );
+            int64_t ts0 = sched_switch.ts;
+            if ( sched_switch.override_ts != 0 )
+                ts0 = sched_switch.override_ts;
+            float x0 = gi.ts_to_screenx( is_sched_wakeup ? ts0 : ts0 - sched_switch.duration );
+            float x1 = gi.ts_to_screenx( is_sched_wakeup ? ts0 + sched_switch.duration : ts0 );
 
             // Bail if we're off the right side of our graph
             if ( x0 > gi.rc.x + gi.rc.w )

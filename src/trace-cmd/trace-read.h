@@ -186,6 +186,7 @@ public:
     uint32_t id;                      // event id
     uint32_t cpu = UINT32_MAX;        // cpu this event was hit on
     int64_t ts;                       // timestamp
+    int64_t override_ts;              // timestamp for when we move events aorund
 
     uint32_t flags = 0;               // TRACE_FLAGS_IRQS_OFF, TRACE_FLAG_HARDIRQ, TRACE_FLAG_SOFTIRQ
     uint32_t seqno = 0;               // event seqno (from fields)

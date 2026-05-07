@@ -2032,6 +2032,7 @@ std::string TraceEvents::get_ftrace_ctx_str( const trace_event_t &event )
 
 void TraceEvents::init_sched_switch_event( trace_event_t &event )
 {
+    event.override_ts = 0;
     bool is_psci_enter = !strcmp( event.name, "psci_domain_idle_enter" );
 
     if ( is_psci_enter ) {
@@ -2115,15 +2116,16 @@ void TraceEvents::init_sched_switch_event( trace_event_t &event )
         assert( prev_pid == event.pid );
 
         // Look for a previous wakeup event
+        trace_event_t *wakeup_event = nullptr;
         plocs = m_sched_switch_wakeup_locs.get_locations_u64( next_pid );
         if ( plocs )
         {
             uint32_t ploc = plocs->back();
 
-            trace_event_t &wakeup_event = m_events[ ploc ];
+            wakeup_event = &m_events[ ploc ];
 
-            wakeup_event.duration = event.ts - wakeup_event.ts;
-            wakeup_event.color = event.color;
+            wakeup_event->duration = event.ts - wakeup_event->ts;
+            wakeup_event->color = event.color;
         }
 
         // Look in the sched_switch next queue for an event that said we were starting up.
@@ -2189,6 +2191,13 @@ void TraceEvents::init_sched_switch_event( trace_event_t &event )
                         }
                     }
                 }
+            }
+
+            // Clamp idle to next wakeup
+            if (prev_pid == 0 && wakeup_event && event.ts > wakeup_event->ts )
+            {
+                event.override_ts = wakeup_event->ts;
+                event.duration -= event.ts - wakeup_event->ts;
             }
         }
 
