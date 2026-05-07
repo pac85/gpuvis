@@ -3216,7 +3216,7 @@ void TraceWin::graph_handle_hotkeys( graph_info_t &gi )
             for (auto id : gi.sched_switch_bars )
             {
                 event_id = id;
-                if ( (get_event( event_id ).flags & TRACE_FLAG_SCHED_SWITCH_TASK_WAKING) == 0 )
+                if ( !( get_event( event_id ).flags & TRACE_FLAG_SCHED_SWITCH_TASK_WAKING ) )
                 {
                     const trace_event_t &event = get_event( event_id );
 
