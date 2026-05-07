@@ -1624,6 +1624,7 @@ uint32_t TraceWin::graph_render_cpus_timeline( graph_info_t &gi )
             const trace_event_t &sched_switch = get_event( locs[ idx ] );
             bool is_psci_exit = !strcmp( sched_switch.name, "psci_domain_idle_exit" );
             bool is_sched_wakeup = !!( sched_switch.flags & TRACE_FLAG_SCHED_SWITCH_TASK_WAKING );
+            bool is_pcsi_enter = !strcmp( sched_switch.name, "psci_domain_idle_enter" );
             float x0 = gi.ts_to_screenx( is_sched_wakeup ? sched_switch.ts : sched_switch.ts - sched_switch.duration );
             float x1 = gi.ts_to_screenx( is_sched_wakeup ? sched_switch.ts + sched_switch.duration : sched_switch.ts );
 
@@ -1660,7 +1661,7 @@ uint32_t TraceWin::graph_render_cpus_timeline( graph_info_t &gi )
                 }
 
                 // If alt key isn't down and there is room for ~12 characters, render comm name
-                if ( visible_bg_and_text && !alt_down && ( x1 - x0 > text_size.x ) && !is_sched_wakeup )
+                if ( visible_bg_and_text && !alt_down && ( x1 - x0 > text_size.x ) && !is_sched_wakeup && !is_pcsi_enter )
                 {
                     float y_text = y + ( row_h - text_size.y ) / 2 - imgui_scale( 1.0f );
                     const char *prev_comm;

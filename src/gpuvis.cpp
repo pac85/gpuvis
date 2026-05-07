@@ -2032,6 +2032,39 @@ std::string TraceEvents::get_ftrace_ctx_str( const trace_event_t &event )
 
 void TraceEvents::init_sched_switch_event( trace_event_t &event )
 {
+    bool is_psci_enter = !strcmp( event.name, "psci_domain_idle_enter" );
+
+    if ( is_psci_enter ) {
+        const std::vector< uint32_t > *plocs;
+        plocs = get_sched_switch_locs( 0, TraceEvents::SCHED_SWITCH_NEXT );
+        if ( plocs )
+        {
+            uint32_t ploc = plocs->back();
+
+            // The swapper, or idle process, is always pid 0, however there's actually one process per-cpu. So, in
+            // order to calculate the duration properly, we need to find the most recent event for the current cpu.
+            if ( m_events[ ploc ].cpu != event.cpu )
+            {
+                for (size_t i = plocs->size() - 1; i --> 0;)
+                {
+                    ploc = plocs->at( i );
+
+                    if ( m_events[ ploc ].cpu == event.cpu )
+                    {
+                        break;
+                    }
+                }
+            }
+
+            trace_event_t &event_prev = m_events[ ploc ];
+
+            if (event.ts > event_prev.ts)
+                event.duration = event.ts - event_prev.ts;
+        }
+        m_sched_switch_cpu_locs.add_location_u64( event.cpu, event.id );
+        return;
+    }
+
     bool is_psci_exit = !strcmp( event.name, "psci_domain_idle_exit" );
 
     if ( is_psci_exit ) {
@@ -2135,6 +2168,28 @@ void TraceEvents::init_sched_switch_event( trace_event_t &event )
 
             // Add this event to the sched switch CPU timeline locs array
             m_sched_switch_cpu_locs.add_location_u64( event.cpu, event.id );
+
+            // Clamp the swapper process event to the previous pcsi_exit event
+            if (prev_pid == 0)
+            {
+                for (int32_t i = event.id; i >= 0; i--)
+                {
+                    if (event.cpu != m_events[i].cpu)
+                        continue;
+
+                    // We are past the last exit event, bail
+                    if ( event_prev.ts > m_events[i].ts)
+                        break;
+
+                    if (!strcmp( m_events[i].name, "psci_domain_idle_exit" )) {
+                        if ( event.ts > m_events[i].ts )
+                        {
+                            event.duration = event.ts - m_events[i].ts;
+                            break;
+                        }
+                    }
+                }
+            }
         }
 
         m_sched_switch_prev_locs.add_location_u64( prev_pid, event.id );
