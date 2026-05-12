@@ -835,6 +835,7 @@ protected:
     // Render graph decorations
     void graph_render_time_ticks( graph_info_t &gi, float h0, float h1 );
     void graph_render_vblanks( graph_info_t &gi );
+    void graph_render_vertical_events( graph_info_t &gi );
     void graph_render_mouse_pos( graph_info_t &gi );
     void graph_render_eventids( graph_info_t &gi );
     void graph_render_mouse_selection( graph_info_t &gi );

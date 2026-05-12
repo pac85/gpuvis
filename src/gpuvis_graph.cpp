@@ -2832,6 +2832,44 @@ void TraceWin::graph_render_vblanks( graph_info_t &gi )
     }
 }
 
+void TraceWin::graph_render_vertical_events( graph_info_t &gi )
+{
+    // Draw vblank events on every graph.
+    const std::vector< uint32_t > *locs = m_trace_events.get_tdopexpr_locs( "($name == \"print\") && ($buf=~\"vbar=1\")" );
+
+    if ( locs )
+    {
+        /*
+         * From Pierre-Loup: One thing I notice when zooming out is that things become
+         * very noisy because of the vblank bars. I'm changing their colors so they're not
+         * fullbright, which helps, but can they be changed to be in the background of
+         * other rendering past a certain zoom threshold? You want them in the foreground
+         * when pretty close, but in the background if there's more than ~50 on screen
+         * probably?
+         */
+
+        for ( size_t idx = vec_find_eventid( *locs, gi.eventstart );
+              idx < locs->size();
+              idx++ )
+        {
+            uint32_t id = locs->at( idx );
+
+            if ( id > gi.eventend )
+                break;
+
+            trace_event_t &event = get_event( id );
+
+            if ( s_opts().getcrtc( event.crtc ) )
+            {
+                uint32_t col = event.color;
+                float x = gi.ts_to_screenx( event.ts );
+
+                imgui_drawrect_filled( x, gi.rc.y, imgui_scale( 1.0f ), gi.rc.h, col);
+            }
+        }
+    }
+}
+
 void TraceWin::graph_render_framemarker_frames( graph_info_t &gi )
 {
     if ( m_frame_markers.m_right_frames.empty() )
@@ -3598,6 +3636,7 @@ void TraceWin::graph_render()
 
         graph_render_time_ticks( gi, imgui_scale( 16.0f ), imgui_scale( 4.0f ) );
         graph_render_vblanks( gi );
+        graph_render_vertical_events( gi );
         graph_render_framemarker_frames( gi );
         graph_render_mouse_pos( gi );
         graph_render_eventids( gi );
