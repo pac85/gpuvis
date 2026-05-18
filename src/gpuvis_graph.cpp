@@ -2832,6 +2832,15 @@ void TraceWin::graph_render_vblanks( graph_info_t &gi )
     }
 }
 
+static uint32_t parse_vbar_color(const char* str, uint32_t fallback)
+{
+    const char* beg = strstr(str, "vbar=");
+    const char nocol[] = "vbar=1 ";
+    if (beg && strncmp(nocol, str, strlen(nocol)))
+        sscanf(beg, "vbar=#%x", &fallback);
+    return fallback;
+}
+
 void TraceWin::graph_render_vertical_events( graph_info_t &gi )
 {
     // Draw vblank events on every graph.
@@ -2859,13 +2868,13 @@ void TraceWin::graph_render_vertical_events( graph_info_t &gi )
 
             trace_event_t &event = get_event( id );
 
-            if ( s_opts().getcrtc( event.crtc ) )
-            {
-                uint32_t col = event.color;
-                float x = gi.ts_to_screenx( event.ts );
+            const char *buf = get_event_field_val( event, "buf" );
 
-                imgui_drawrect_filled( x, gi.rc.y, imgui_scale( 1.0f ), gi.rc.h, col);
-            }
+            uint32_t col = parse_vbar_color(buf, event.color);
+
+            float x = gi.ts_to_screenx( event.ts );
+
+            imgui_drawrect_filled( x, gi.rc.y, imgui_scale( 1.0f ), gi.rc.h, col);
         }
     }
 }
