@@ -740,6 +740,8 @@ static bool is_msm_timeline_event( const char *name )
 {
     return ( !strcmp( name, "msm_gpu_submit" ) ||
             !strcmp( name, "msm_gpu_submit_flush" ) ||
+            !strcmp( name, "msm_gpu_submit_validate_start" ) ||
+            !strcmp( name, "msm_gpu_submit_validate_end" ) ||
             !strcmp( name, "msm_gpu_submit_retired" ) ||
             !strcmp( name, "msm_gpu_preemption_trigger" ) ||
             !strcmp( name, "msm_gpu_preemption_irq" ));
@@ -1984,7 +1986,9 @@ uint64_t TraceEvents::get_event_gfxcontext_hash( const trace_event_t &event )
 {
     if ( is_msm_timeline_event( event.name ) )
     {
-        if (!strcmp( event.name, "msm_gpu_preemption_trigger" ))
+        if (!strcmp( event.name, "msm_gpu_preemption_trigger" ) ||
+            !strcmp( event.name, "msm_gpu_submit_validate_start" ) ||
+            !strcmp( event.name, "msm_gpu_submit_validate_end" ))
             return event.id;
         else if (!strcmp( event.name, "msm_gpu_preemption_irq" ))
             return event.id_start;
@@ -2330,6 +2334,47 @@ void TraceEvents::init_msm_timeline_event( trace_event_t &event )
                     event.flags |= TRACE_FLAG_TIMELINE;
                     break;
                 }
+        }
+
+        return;
+    }
+
+    bool is_validate_start, is_validate_end;
+    is_validate_start = !strcmp( event.name, "msm_gpu_submit_validate_start" );
+    is_validate_end = !strcmp( event.name, "msm_gpu_submit_validate_end" );
+
+    // We have a timeline for swap that reqquires different handling
+    if ( is_validate_start || is_validate_end ) {
+        std::string str = string_format( "msm swap" );
+
+        m_amd_timeline_locs.add_location_str( str.c_str(), event.id );
+
+        if (is_validate_start) {
+            event.flags |= TRACE_FLAG_SW_QUEUE;
+
+            // Swap events have no submission seqno so use the event id as the hash
+            m_gfxcontext_locs.add_location_u64( event.id, event.id );
+
+            event.flags |= TRACE_FLAG_TIMELINE;
+        }
+
+        if (is_validate_end) {
+            int submit_id = atoi( get_event_field_val( event, "id", "0" ) );
+            event.flags |= TRACE_FLAG_FENCE_SIGNALED;
+            // We look for a previous trigger event to pair this one with
+            for (int32_t i = event.id; i >= 0; i--)
+                if (!strcmp( m_events[i].name, "msm_gpu_submit_validate_start" )) {
+                    int end_submit_id = atoi( get_event_field_val( m_events[i], "id", "0" ) );
+                    if (submit_id != end_submit_id)
+                        continue;
+
+                    event.id_start = m_events[i].id;
+                    m_gfxcontext_locs.add_location_u64( event.id_start, event.id );
+                    event.flags |= TRACE_FLAG_TIMELINE;
+                    break;
+                }
+
+            m_gfxcontext_locs.add_location_u64( event.id, event.id );
         }
 
         return;

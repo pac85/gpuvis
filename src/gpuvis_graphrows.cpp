@@ -525,6 +525,13 @@ void GraphRows::init( TraceEvents &trace_events )
         if ( ( plocs = trace_events.get_locs( str.c_str(), &type ) ) )
             push_row( str, type, plocs->size() );
 
+        {
+            std::string str = string_format( "msm swap" );
+
+            if ( ( plocs = trace_events.get_locs( str.c_str(), &type ) ) )
+                push_row( str, type, plocs->size() );
+        }
+
         str = string_format( "msm freq" );
 
         if ( ( plocs = trace_events.get_locs( str.c_str(), &type ) ) ) {
