@@ -508,7 +508,7 @@ void GraphRows::init( TraceEvents &trace_events )
     // Qualcomm MSM GPU timeline
     {
         // How many max rings on Qualcomm MSM?
-        for ( int ring = 0; ring < 9; ring++)
+        for ( int ring = 0; ring < 11; ring++)
         {
             std::string str = string_format( "msm ring%d", ring );
             std::string str_hw = string_format( "msm ring%d hw", ring );
